@@ -1,3 +1,44 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Maven
+target/
+
+# OS files
+.DS_Store
+
+# Logs
+*.log
+
+# IntelliJ / Eclipse
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# Compiled Java
+*.class
 # Maven
 target/
 
