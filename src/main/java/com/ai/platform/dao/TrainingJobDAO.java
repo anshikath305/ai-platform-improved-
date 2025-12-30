@@ -1,5 +1,6 @@
 package com.ai.platform.dao;
 
+import com.ai.platform.util.ErrorLogger;
 import com.ai.platform.db.DBConnection;
 import com.ai.platform.model.TrainingJob;
 
@@ -9,163 +10,176 @@ import java.util.List;
 
 public class TrainingJobDAO {
 
-    // CREATE JOB & RETURN GENERATED ID
-    public int createTrainingJob(TrainingJob job) {
-        String sql = "INSERT INTO training_jobs (dataset_id, model_name, parameters, created_by, status) VALUES (?, ?, ?, ?, ?)";
+    // CREATE JOB + INITIAL LOG (TRANSACTION SAFE)
+    public int createTrainingJob(TrainingJob job, String firstLog) {
 
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        String sqlJob = "INSERT INTO training_jobs (dataset_id, model_name, status, accuracy, created_by) VALUES (?, ?, ?, ?, ?)";
+        String sqlLog = "INSERT INTO experiment_logs (experiment_id, message) VALUES (?, ?)";
 
-            stmt.setInt(1, job.getDatasetId());
-            stmt.setString(2, job.getModelName());
-            stmt.setString(3, job.getParameters());
-            stmt.setInt(4, job.getCreatedBy());
-            stmt.setString(5, job.getStatus());
+        try (Connection conn = DBConnection.getConnection()) {
 
-            stmt.executeUpdate();
+            conn.setAutoCommit(false);
 
-            // return generated job ID
-            ResultSet rs = stmt.getGeneratedKeys();
-            if (rs.next()) {
-                return rs.getInt(1);
+            try (PreparedStatement stmtJob = conn.prepareStatement(sqlJob, Statement.RETURN_GENERATED_KEYS)) {
+
+                stmtJob.setInt(1, job.getDatasetId());
+                stmtJob.setString(2, job.getModelName());
+                stmtJob.setString(3, job.getStatus());
+                stmtJob.setFloat(4, job.getAccuracy());
+                stmtJob.setInt(5, job.getCreatedBy());
+
+                stmtJob.executeUpdate();
+
+                ResultSet keys = stmtJob.getGeneratedKeys();
+                int jobId = -1;
+
+                if (keys.next()) {
+                    jobId = keys.getInt(1);
+                }
+
+                if (jobId == -1) {
+                    conn.rollback();
+                    return -1;
+                }
+
+                try (PreparedStatement stmtLog = conn.prepareStatement(sqlLog)) {
+                    stmtLog.setInt(1, jobId);
+                    stmtLog.setString(2, firstLog);
+                    stmtLog.executeUpdate();
+                }
+
+                conn.commit();
+                return jobId;
+
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return -1;  // failed
-    }
-
-    // GET ALL JOBS FOR USER
-    public List<TrainingJob> getTrainingJobs(int userId) {
-        List<TrainingJob> list = new ArrayList<>();
-
-        String sql = "SELECT * FROM training_jobs WHERE created_by = ? ORDER BY created_at DESC";
-
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setInt(1, userId);
-            ResultSet rs = stmt.executeQuery();
-
-            while (rs.next()) {
-                TrainingJob job = new TrainingJob(
-                        rs.getInt("id"),
-                        rs.getInt("dataset_id"),
-                        rs.getString("model_name"),
-                        rs.getString("parameters"),
-                        rs.getFloat("accuracy"),
-                        rs.getString("status"),
-                        rs.getInt("created_by"),
-                        rs.getString("created_at")
-                );
-
-                // 🔥 Important line you asked for:
-                job.setCreatedAt(rs.getString("created_at"));
-
-                list.add(job);
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
         }
 
-        return list;
+        return -1;
     }
 
-    // UPDATE STATUS
-    public void updateStatus(int jobId, String status) {
-        String sql = "UPDATE training_jobs SET status = ? WHERE id = ?";
+    // ✅ ADD THIS METHOD (THIS FIXES THE JSP ERROR)
+    public List<TrainingJob> getAllTrainingJobs() {
 
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, status);
-            stmt.setInt(2, jobId);
-            stmt.executeUpdate();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    // UPDATE ACCURACY
-    public void updateAccuracy(int jobId, float accuracy) {
-        String sql = "UPDATE training_jobs SET accuracy = ? WHERE id = ?";
-
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setFloat(1, accuracy);
-            stmt.setInt(2, jobId);
-            stmt.executeUpdate();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    public int getLastInsertedJobId() {
-    String sql = "SELECT LAST_INSERT_ID() as id";
-    try (Connection conn = DBConnection.getConnection();
-         PreparedStatement stmt = conn.prepareStatement(sql);
-         ResultSet rs = stmt.executeQuery()) {
-
-        if (rs.next()) {
-            return rs.getInt("id");
-        }
-
-    } catch (Exception e) {
-        e.printStackTrace();
-    }
-    return -1;
-}
-
-public boolean deleteTrainingJob(int id) {
-    String sql = "DELETE FROM training_jobs WHERE id = ?";
-
-    try (Connection conn = DBConnection.getConnection();
-         PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-        stmt.setInt(1, id);
-        return stmt.executeUpdate() > 0;
-
-    } catch (Exception e) {
-        e.printStackTrace();
-    }
-
-    return false;
-}
-public List<TrainingJob> getAllTrainingJobs() {
     List<TrainingJob> list = new ArrayList<>();
-
-    String sql = "SELECT * FROM training_jobs ORDER BY created_at DESC";
+    String sql = "SELECT * FROM training_jobs ORDER BY id DESC";
 
     try (Connection conn = DBConnection.getConnection();
-         PreparedStatement stmt = conn.prepareStatement(sql);
-         ResultSet rs = stmt.executeQuery()) {
+         PreparedStatement ps = conn.prepareStatement(sql);
+         ResultSet rs = ps.executeQuery()) {
 
         while (rs.next()) {
             TrainingJob job = new TrainingJob();
             job.setId(rs.getInt("id"));
-            job.setCreatedBy(rs.getInt("created_by"));
             job.setDatasetId(rs.getInt("dataset_id"));
             job.setModelName(rs.getString("model_name"));
             job.setStatus(rs.getString("status"));
             job.setAccuracy(rs.getFloat("accuracy"));
-            job.setCreatedAt(rs.getString("created_at"));
+            job.setCreatedBy(rs.getInt("created_by"));
+
+            Timestamp ts = rs.getTimestamp("created_at");
+            job.setCreatedAt(ts != null ? ts.toString() : null);
 
             list.add(job);
         }
 
     } catch (Exception e) {
-        e.printStackTrace();
+        ErrorLogger.log(e);
     }
 
     return list;
 }
 
 
+    public boolean updateStatus(int id, String status) {
+        try (Connection conn = DBConnection.getConnection()) {
+            PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE training_jobs SET status=? WHERE id=?"
+            );
+            ps.setString(1, status);
+            ps.setInt(2, id);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            ErrorLogger.log(e);
+            return false;
+        }
+    }
 
+    public boolean updateAccuracy(int id, float accuracy) {
+        try (Connection conn = DBConnection.getConnection()) {
+            PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE training_jobs SET accuracy=? WHERE id=?"
+            );
+            ps.setFloat(1, accuracy);
+            ps.setInt(2, id);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            ErrorLogger.log(e);
+            return false;
+        }
+    }
+
+    public boolean deleteTrainingJob(int id) {
+        try (Connection conn = DBConnection.getConnection()) {
+            PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM training_jobs WHERE id=?"
+            );
+            ps.setInt(1, id);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            ErrorLogger.log(e);
+            return false;
+        }
+    }
+    // FETCH TRAINING JOBS FOR A SPECIFIC USER (RESEARCHER)
+public List<TrainingJob> getTrainingJobs(int userId) {
+
+    List<TrainingJob> jobs = new ArrayList<>();
+
+    String sql = """
+        SELECT id, dataset_id, model_name, parameters,
+               accuracy, status, created_by, created_at
+        FROM training_jobs
+        WHERE created_by = ?
+        ORDER BY created_at DESC
+    """;
+
+    try (Connection conn = DBConnection.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setInt(1, userId);
+
+        ResultSet rs = ps.executeQuery();
+
+        while (rs.next()) {
+            TrainingJob job = new TrainingJob();
+
+            job.setId(rs.getInt("id"));
+            job.setDatasetId(rs.getInt("dataset_id"));
+            job.setModelName(rs.getString("model_name"));
+            job.setParameters(rs.getString("parameters"));
+            job.setAccuracy(rs.getFloat("accuracy"));
+            job.setStatus(rs.getString("status"));
+            job.setCreatedBy(rs.getInt("created_by"));
+            job.setCreatedAt(
+                rs.getTimestamp("created_at") != null
+                    ? rs.getTimestamp("created_at").toString()
+                    : null
+            );
+
+            jobs.add(job);
+        }
+
+    } catch (Exception e) {
+        ErrorLogger.log(e);
+    }
+
+    return jobs;
+}
 
 }

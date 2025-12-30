@@ -1,9 +1,8 @@
 package com.ai.platform.servlets;
-
-import com.ai.platform.dao.TrainingJobDAO;
+import com.ai.platform.util.ErrorLogger;
 import com.ai.platform.model.TrainingJob;
 import com.ai.platform.model.User;
-import com.ai.platform.worker.TrainingWorker;
+import com.ai.platform.service.TrainingService;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -17,46 +16,54 @@ import java.io.IOException;
 public class TrainingServlet extends HttpServlet {
 
     @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
+protected void doPost(HttpServletRequest request, HttpServletResponse response)
+        throws ServletException, IOException {
+
+    try {
+        String modelName = request.getParameter("model_name");
+        String datasetIdStr = request.getParameter("dataset_id");
+
+        // server-side validation
+        if (modelName == null || modelName.trim().isEmpty()) {
+            response.sendRedirect("training.jsp?error=model");
+            return;
+        }
+
+        if (datasetIdStr == null || !datasetIdStr.matches("\\d+")) {
+            response.sendRedirect("training.jsp?error=dataset");
+            return;
+        }
+
+        int datasetId = Integer.parseInt(datasetIdStr);
 
         User user = (User) request.getSession().getAttribute("user");
-
         if (user == null) {
             response.sendRedirect("login.jsp");
             return;
         }
 
-        try {
-            int datasetId = Integer.parseInt(request.getParameter("dataset_id"));
-            String modelName = request.getParameter("model_name");
-            String parameters = request.getParameter("parameters");
+        TrainingJob job = new TrainingJob();
+        job.setCreatedBy(user.getId());
+        job.setDatasetId(datasetId);
+        job.setModelName(modelName);
+        job.setStatus("Queued");
+        job.setAccuracy(0);
 
-            TrainingJob job = new TrainingJob();
-            job.setDatasetId(datasetId);
-            job.setModelName(modelName);
-            job.setParameters(parameters);
-            job.setCreatedBy(user.getId());
+        TrainingService service = new TrainingService();
+        int jobId = service.startTrainingJob(job);
 
-            TrainingJobDAO dao = new TrainingJobDAO();
 
-            // ❗ DAO now returns jobId, not boolean
-            int jobId = dao.createTrainingJob(job);
-
-            if (jobId > 0) {
-                // Start background training thread
-                TrainingWorker worker = new TrainingWorker(jobId);
-                Thread thread = new Thread(worker);
-                thread.start();
-
-                response.sendRedirect("training.jsp?success=1");
-            } else {
-                response.sendRedirect("training.jsp?error=1");
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            response.sendRedirect("training.jsp?error=1");
+        if (jobId > 0) {
+            response.sendRedirect("training-history.jsp?job=" + jobId);
+        } else {
+            response.sendRedirect("training.jsp?error=server");
         }
+
+    } catch (Exception e) {
+        ErrorLogger.log(e);
+        response.sendRedirect("training.jsp?error=exception");
     }
+}
+
+
 }

@@ -5,7 +5,6 @@ import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-
 import java.io.IOException;
 
 @WebFilter("/*")
@@ -21,66 +20,41 @@ public class RoleFilter implements Filter {
         String path = request.getRequestURI();
         User user = (User) request.getSession().getAttribute("user");
 
-
-        // --------------------------------------
-        // 1️⃣ Publicly Accessible Pages
-        // --------------------------------------
+        /* ---------------- PUBLIC PAGES ---------------- */
         if (
-                path.contains("login.jsp") ||
-                path.contains("signup.jsp") ||
-                path.endsWith("/login") ||
-                path.contains("assets/") ||
-                path.contains("error403.jsp")
+                path.endsWith("login.jsp") ||
+                path.endsWith("signup.jsp") ||
+                path.contains("/login") ||
+                path.contains("/assets/") ||
+                path.endsWith("error.jsp") ||
+                path.endsWith("error403.jsp")
         ) {
             chain.doFilter(req, res);
             return;
         }
 
-
-        // --------------------------------------
-        // 2️⃣ Block All Other Pages If Not Logged In
-        // --------------------------------------
+        /* ---------------- AUTH CHECK ---------------- */
         if (user == null) {
-            response.sendRedirect("login.jsp");
+            response.sendRedirect(request.getContextPath() + "/login.jsp");
             return;
         }
 
-
-        // --------------------------------------
-        // 3️⃣ ADMIN Pages Protection
-        // Match ANY URL containing "admin-"
-        // OR any servlet starting with "/admin"
-        // --------------------------------------
-        boolean isAdminPage =
-                path.contains("admin-") ||  // e.g. admin-users.jsp
-                path.contains("/admin");    // e.g. /admin-users, /admin-experiments
-
-        if (isAdminPage) {
-            if (!"ADMIN".equals(user.getRole())) {
-                response.sendRedirect("error403.jsp");
+        /* ---------------- ADMIN PAGES ---------------- */
+        if (path.contains("admin-") || path.contains("/admin")) {
+            if (!"ADMIN".equalsIgnoreCase(user.getRole())) {
+                response.sendRedirect(request.getContextPath() + "/error403.jsp");
                 return;
             }
         }
 
-
-        // --------------------------------------
-        // 4️⃣ RESEARCHER Pages Protection
-        // --------------------------------------
-        boolean isResearcherPage =
-                path.contains("researcher-") ||
-                path.contains("/researcher");
-
-        if (isResearcherPage) {
-            if (!"RESEARCHER".equals(user.getRole())) {
-                response.sendRedirect("error403.jsp");
+        /* ---------------- RESEARCHER PAGES ---------------- */
+        if (path.contains("researcher-") || path.contains("/researcher")) {
+            if (!"RESEARCHER".equalsIgnoreCase(user.getRole())) {
+                response.sendRedirect(request.getContextPath() + "/error403.jsp");
                 return;
             }
         }
 
-
-        // --------------------------------------
-        // 5️⃣ Allow Access
-        // --------------------------------------
         chain.doFilter(req, res);
     }
 }

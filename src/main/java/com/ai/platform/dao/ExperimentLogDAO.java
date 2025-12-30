@@ -1,5 +1,5 @@
 package com.ai.platform.dao;
-
+import com.ai.platform.util.ErrorLogger;
 import com.ai.platform.db.DBConnection;
 import com.ai.platform.model.ExperimentLog;
 
@@ -22,7 +22,8 @@ public class ExperimentLogDAO {
             return stmt.executeUpdate() > 0;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
+
         }
 
         return false;
@@ -51,7 +52,8 @@ public class ExperimentLogDAO {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
+
         }
 
         return list;

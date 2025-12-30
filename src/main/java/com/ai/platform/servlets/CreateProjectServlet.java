@@ -1,5 +1,5 @@
 package com.ai.platform.servlets;
-
+import com.ai.platform.util.ErrorLogger;
 import com.ai.platform.dao.ProjectDAO;
 import com.ai.platform.model.Project;
 import com.ai.platform.model.User;
@@ -16,8 +16,23 @@ import java.io.IOException;
 public class CreateProjectServlet extends HttpServlet {
 
     @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
+protected void doPost(HttpServletRequest request, HttpServletResponse response)
+        throws ServletException, IOException {
+
+    try {
+        String name = request.getParameter("name");
+        String description = request.getParameter("description");
+
+        // ---------- VALIDATION ----------
+        if (name == null || name.trim().isEmpty()) {
+            response.sendRedirect("create-project.jsp?error=name");
+            return;
+        }
+
+        if (description == null || description.trim().isEmpty()) {
+            response.sendRedirect("create-project.jsp?error=desc");
+            return;
+        }
 
         User user = (User) request.getSession().getAttribute("user");
         if (user == null) {
@@ -25,17 +40,21 @@ public class CreateProjectServlet extends HttpServlet {
             return;
         }
 
-        String title = request.getParameter("title");
-        String description = request.getParameter("description");
-
-        Project p = new Project();
-        p.setTitle(title);
-        p.setDescription(description);
-        p.setCreatedBy(user.getId());
-
         ProjectDAO dao = new ProjectDAO();
-        dao.createProject(p);
 
-        response.sendRedirect("collaboration.jsp?created=1");
+        // ---------- CREATE PROJECT ATOMICALLY ----------
+        int projectId = dao.createProject(user.getId(), name, description, "Project created");
+
+        if (projectId > 0) {
+            response.sendRedirect("project-details.jsp?id=" + projectId);
+        } else {
+            response.sendRedirect("create-project.jsp?error=db");
+        }
+
+    } catch (Exception e) {
+        ErrorLogger.log(e);
+        response.sendRedirect("create-project.jsp?error=exception");
     }
+}
+
 }

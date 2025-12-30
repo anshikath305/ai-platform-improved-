@@ -1,5 +1,5 @@
 package com.ai.platform.dao;
-
+import com.ai.platform.util.ErrorLogger;
 import com.ai.platform.db.DBConnection;
 import com.ai.platform.model.Experiment;
 
@@ -9,22 +9,125 @@ import java.util.List;
 
 public class ExperimentDAO {
 
-    // Create experiment
-    public boolean createExperiment(Experiment exp) {
+    // Create experiment + first log atomically
+    public int createExperiment(Experiment exp, String firstLog) {
 
-        String sql = "INSERT INTO experiments (user_id, title, description) VALUES (?, ?, ?)";
+        String sqlExp = "INSERT INTO experiments (user_id, title, description, status, accuracy) VALUES (?, ?, ?, ?, ?)";
+        String sqlLog = "INSERT INTO experiment_logs (experiment_id, message) VALUES (?, ?)";
 
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DBConnection.getConnection()) {
 
-            stmt.setInt(1, exp.getUserId());
-            stmt.setString(2, exp.getTitle());
-            stmt.setString(3, exp.getDescription());
+            conn.setAutoCommit(false);
 
-            return stmt.executeUpdate() > 0;
+            try (PreparedStatement stmtExp = conn.prepareStatement(sqlExp, Statement.RETURN_GENERATED_KEYS)) {
+
+                stmtExp.setInt(1, exp.getUserId());
+                stmtExp.setString(2, exp.getTitle());
+                stmtExp.setString(3, exp.getDescription());
+                stmtExp.setString(4, exp.getStatus());
+                stmtExp.setFloat(5, exp.getAccuracy());
+
+                stmtExp.executeUpdate();
+
+                ResultSet keys = stmtExp.getGeneratedKeys();
+                int expId = -1;
+
+                if (keys.next()) {
+                    expId = keys.getInt(1);
+                }
+
+                if (expId == -1) {
+                    conn.rollback();
+                    return -1;
+                }
+
+                try (PreparedStatement stmtLog = conn.prepareStatement(sqlLog)) {
+                    stmtLog.setInt(1, expId);
+                    stmtLog.setString(2, firstLog);
+                    stmtLog.executeUpdate();
+                }
+
+                conn.commit();
+                return expId;
+
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
+        }
+
+        return -1;
+    }
+
+    // Add log entry - transaction safe
+    public boolean addLog(int expId, String message) {
+
+        String sql = "INSERT INTO experiment_logs (experiment_id, message) VALUES (?, ?)";
+
+        try (Connection conn = DBConnection.getConnection()) {
+
+            conn.setAutoCommit(false);
+
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+                stmt.setInt(1, expId);
+                stmt.setString(2, message);
+
+                int rows = stmt.executeUpdate();
+
+                if (rows > 0) {
+                    conn.commit();
+                    return true;
+                } else {
+                    conn.rollback();
+                }
+
+            } catch (SQLException e) {
+                conn.rollback();
+                ErrorLogger.log(e);
+            }
+
+        } catch (Exception e) {
+            ErrorLogger.log(e);
+        }
+
+        return false;
+    }
+
+    // Add results - NEW method based on requirements
+    public boolean addResult(int expId, String output, String metrics) {
+
+        String sql = "INSERT INTO experiment_results (experiment_id, output, metrics) VALUES (?, ?, ?)";
+
+        try (Connection conn = DBConnection.getConnection()) {
+
+            conn.setAutoCommit(false);
+
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+                stmt.setInt(1, expId);
+                stmt.setString(2, output);
+                stmt.setString(3, metrics);
+
+                int rows = stmt.executeUpdate();
+
+                if (rows > 0) {
+                    conn.commit();
+                    return true;
+                } else {
+                    conn.rollback();
+                }
+
+            } catch (SQLException e) {
+                conn.rollback();
+                ErrorLogger.log(e);
+            }
+
+        } catch (Exception e) {
+            ErrorLogger.log(e);
         }
 
         return false;
@@ -58,7 +161,7 @@ public class ExperimentDAO {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
         }
 
         return list;
@@ -90,64 +193,13 @@ public class ExperimentDAO {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
         }
 
         return null;
     }
 
-    // Update experiment status
-    public void updateStatus(int experimentId, String status) {
-
-        String sql = "UPDATE experiments SET status=? WHERE id=?";
-
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, status);
-            stmt.setInt(2, experimentId);
-            stmt.executeUpdate();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    // Update experiment accuracy
-    public void updateAccuracy(int experimentId, float accuracy) {
-
-        String sql = "UPDATE experiments SET accuracy=? WHERE id=?";
-
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setFloat(1, accuracy);
-            stmt.setInt(2, experimentId);
-            stmt.executeUpdate();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    // Add log entry
-    public void addLog(int experimentId, String message) {
-
-        String sql = "INSERT INTO experiment_logs (experiment_id, message) VALUES (?, ?)";
-
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setInt(1, experimentId);
-            stmt.setString(2, message);
-            stmt.executeUpdate();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    // Get log entries
+    // Get Logs
     public List<String> getLogs(int experimentId) {
         List<String> logs = new ArrayList<>();
 
@@ -164,17 +216,17 @@ public class ExperimentDAO {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
         }
 
         return logs;
     }
 
-    // ADMIN: Fetch all experiments with user name
+    // ADMIN: Fetch all experiments with user details
     public List<Experiment> getAllExperiments() {
         List<Experiment> list = new ArrayList<>();
 
-        String sql = 
+        String sql =
             "SELECT e.*, u.name AS user_name " +
             "FROM experiments e " +
             "JOIN users u ON e.user_id = u.id " +
@@ -201,7 +253,7 @@ public class ExperimentDAO {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
         }
 
         return list;
@@ -209,6 +261,7 @@ public class ExperimentDAO {
 
     // Delete Experiment
     public boolean deleteExperiment(int id) {
+
         String sql = "DELETE FROM experiments WHERE id = ?";
 
         try (Connection conn = DBConnection.getConnection();
@@ -218,9 +271,37 @@ public class ExperimentDAO {
             return stmt.executeUpdate() > 0;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
         }
 
         return false;
     }
+    public boolean updateStatus(int id, String status) {
+    try (Connection conn = DBConnection.getConnection()) {
+        PreparedStatement ps = conn.prepareStatement(
+            "UPDATE training_jobs SET status=? WHERE id=?"
+        );
+        ps.setString(1, status);
+        ps.setInt(2, id);
+        return ps.executeUpdate() > 0;
+    } catch (Exception e) {
+        ErrorLogger.log(e);
+        return false;
+    }
+}
+
+public boolean updateAccuracy(int id, float accuracy) {
+    try (Connection conn = DBConnection.getConnection()) {
+        PreparedStatement ps = conn.prepareStatement(
+            "UPDATE training_jobs SET accuracy=? WHERE id=?"
+        );
+        ps.setFloat(1, accuracy);
+        ps.setInt(2, id);
+        return ps.executeUpdate() > 0;
+    } catch (Exception e) {
+        ErrorLogger.log(e);
+        return false;
+    }
+}
+
 }

@@ -2,6 +2,7 @@ package com.ai.platform.servlets;
 
 import com.ai.platform.dao.UserDAO;
 import com.ai.platform.model.User;
+import jakarta.servlet.ServletException;
 
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;

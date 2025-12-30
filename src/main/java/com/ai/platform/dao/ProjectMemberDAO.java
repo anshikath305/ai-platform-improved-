@@ -1,5 +1,5 @@
 package com.ai.platform.dao;
-
+import com.ai.platform.util.ErrorLogger;
 import com.ai.platform.db.DBConnection;
 import com.ai.platform.model.ProjectMember;
 import com.ai.platform.model.User;
@@ -11,23 +11,40 @@ import java.util.List;
 public class ProjectMemberDAO {
 
     // Add member to project
-    public boolean addMember(ProjectMember member) {
-        String sql = "INSERT INTO project_members (project_id, user_id) VALUES (?, ?)";
+    public boolean addMember(int projectId, int userId) {
 
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+    String sql = "INSERT INTO project_members(project_id, user_id) VALUES (?, ?)";
 
-            stmt.setInt(1, member.getProjectId());
-            stmt.setInt(2, member.getUserId());
+    try (Connection conn = DBConnection.getConnection()) {
 
-            return stmt.executeUpdate() > 0;
+        conn.setAutoCommit(false);
 
-        } catch (Exception e) {
-            e.printStackTrace();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, projectId);
+            stmt.setInt(2, userId);
+
+            int rows = stmt.executeUpdate();
+
+            if (rows > 0) {
+                conn.commit();
+                return true;
+            } else {
+                conn.rollback();
+            }
+
+        } catch (SQLException e) {
+            conn.rollback();
+            ErrorLogger.log(e);
         }
 
-        return false;
+    } catch (Exception e) {
+        ErrorLogger.log(e);
     }
+
+    return false;
+}
+
 
     // Get user_ids of members
     public List<Integer> getMembersByProject(int projectId) {
@@ -45,7 +62,8 @@ public class ProjectMemberDAO {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
+
         }
 
         return userIds;
@@ -77,7 +95,8 @@ public class ProjectMemberDAO {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
+
         }
 
         return list;

@@ -1,7 +1,7 @@
 package com.ai.platform.servlets;
 
-import com.ai.platform.dao.UserDAO;
-import com.ai.platform.model.User;
+import com.ai.platform.util.ErrorLogger;
+import com.ai.platform.service.UserService;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -18,24 +18,35 @@ public class SignupServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        String name = request.getParameter("name");
-        String email = request.getParameter("email");
-        String password = request.getParameter("password");
-        String role = request.getParameter("role");
+        try {
 
-        User user = new User();
-        user.setName(name);
-        user.setEmail(email);
-        user.setPassword(password);
-        user.setRole(role);
+            String name = request.getParameter("name");
+            String email = request.getParameter("email");
+            String password = request.getParameter("password");
 
-        UserDAO userDAO = new UserDAO();
-        boolean created = userDAO.createUser(user);
+            UserService service = new UserService();
 
-        if (created) {
-            response.sendRedirect("login.jsp?signup=success");
-        } else {
-            response.sendRedirect("signup.jsp?error=email_taken");
+            // validate input
+            String errorMsg = service.validateSignupData(name, email, password);
+
+            if (errorMsg != null) {
+                response.sendRedirect("signup.jsp?error=" + errorMsg);
+                return;
+            }
+
+            // Create user
+            boolean created = service.createUser(name, email, password);
+
+            if (created) {
+                response.sendRedirect("login.jsp?signup=success");
+            } else {
+                response.sendRedirect("signup.jsp?error=server");
+            }
+
+        } catch (Exception e) {
+
+            ErrorLogger.log(e);
+            response.sendRedirect("signup.jsp?error=exception");
         }
     }
 }

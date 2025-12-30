@@ -1,5 +1,5 @@
 package com.ai.platform.dao;
-
+import com.ai.platform.util.ErrorLogger;
 import com.ai.platform.db.DBConnection;
 import com.ai.platform.model.CollabPost;
 
@@ -21,7 +21,8 @@ public class CollabPostDAO {
             return stmt.executeUpdate() > 0;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
+
         }
 
         return false;
@@ -48,7 +49,8 @@ public class CollabPostDAO {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
+
         }
 
         return list;

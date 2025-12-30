@@ -1,5 +1,5 @@
 package com.ai.platform.dao;
-
+import com.ai.platform.util.ErrorLogger;
 import com.ai.platform.db.DBConnection;
 import com.ai.platform.model.Project;
 
@@ -9,24 +9,59 @@ import java.util.List;
 
 public class ProjectDAO {
 
-    public boolean createProject(Project project) {
-        String sql = "INSERT INTO projects (title, description, created_by) VALUES (?, ?, ?)";
+    public int createProject(int ownerId, String name, String description, String firstLog) {
+    String sqlProject = "INSERT INTO projects (name, description, owner_id) VALUES (?, ?, ?)";
+    String sqlLog = "INSERT INTO project_members (project_id, user_id) VALUES (?, ?)";
 
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+    try (Connection conn = DBConnection.getConnection()) {
 
-            stmt.setString(1, project.getTitle());
-            stmt.setString(2, project.getDescription());
-            stmt.setInt(3, project.getCreatedBy());
+        conn.setAutoCommit(false);
 
-            return stmt.executeUpdate() > 0;
+        // 1️⃣ Insert project
+        try (PreparedStatement stmtProject =
+                     conn.prepareStatement(sqlProject, Statement.RETURN_GENERATED_KEYS)) {
 
-        } catch (Exception e) {
-            e.printStackTrace();
+            stmtProject.setString(1, name);
+            stmtProject.setString(2, description);
+            stmtProject.setInt(3, ownerId);
+            stmtProject.executeUpdate();
+
+            ResultSet rs = stmtProject.getGeneratedKeys();
+            int projectId = -1;
+
+            if (rs.next()) {
+                projectId = rs.getInt(1);
+            }
+
+            if (projectId == -1) {
+                conn.rollback();
+                return -1;
+            }
+
+            // 2️⃣ auto add owner as member
+            try (PreparedStatement stmtMember = conn.prepareStatement(sqlLog)) {
+                stmtMember.setInt(1, projectId);
+                stmtMember.setInt(2, ownerId);
+                stmtMember.executeUpdate();
+            }
+
+            // everything passed
+            conn.commit();
+            return projectId;
+
+        } catch (SQLException e) {
+            conn.rollback();
+            throw e;
         }
 
-        return false;
+    } catch (Exception e) {
+        ErrorLogger.log(e);
     }
+
+    return -1;
+}
+
+
 
     public List<Project> getAllProjects() {
         List<Project> list = new ArrayList<>();
@@ -50,7 +85,8 @@ public class ProjectDAO {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
+
         }
 
         return list;
@@ -66,7 +102,8 @@ public class ProjectDAO {
             return stmt.executeUpdate() > 0;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
+
         }
 
         return false;

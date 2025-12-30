@@ -4,7 +4,7 @@ import com.ai.platform.dao.UserDAO;
 import com.ai.platform.dao.ProjectMemberDAO;
 import com.ai.platform.model.ProjectMember;
 import com.ai.platform.model.User;
-
+import jakarta.servlet.*;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -26,7 +26,6 @@ public class AddMemberServlet extends HttpServlet {
         UserDAO userDAO = new UserDAO();
         ProjectMemberDAO pmDAO = new ProjectMemberDAO();
 
-        // Find user by email
         User user = userDAO.getUserByEmail(email);
 
         if (user == null) {
@@ -34,12 +33,11 @@ public class AddMemberServlet extends HttpServlet {
             return;
         }
 
-        // Create member object
         ProjectMember member = new ProjectMember();
         member.setProjectId(projectId);
         member.setUserId(user.getId());
 
-        boolean success = pmDAO.addMember(member);
+        boolean success = pmDAO.addMember(projectId, user.getId());
 
         if (success) {
             response.sendRedirect("add-member.jsp?project_id=" + projectId + "&success=1");

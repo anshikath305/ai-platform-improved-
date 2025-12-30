@@ -1,0 +1,30 @@
+# Maven
+target/
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+# Maven build
+target/
+
+# OS files
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+
+# Environment
+.env
+

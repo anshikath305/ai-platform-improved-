@@ -1,54 +1,83 @@
-<%@ page import="java.util.List" %>
+<%@ page import="java.util.*" %>
 <%@ page import="com.ai.platform.model.Experiment" %>
+<%@ page import="com.ai.platform.dao.ExperimentDAO" %>
+<%@ page import="com.ai.platform.model.User" %>
 
 <%
-    List<Experiment> experiments = (List<Experiment>) request.getAttribute("experiments");
+    User admin = (User) session.getAttribute("user");
+    if (admin == null || !"ADMIN".equalsIgnoreCase(admin.getRole())) {
+        response.sendRedirect("login.jsp");
+        return;
+    }
+
+    ExperimentDAO dao = new ExperimentDAO();
+    List<Experiment> experiments = dao.getAllExperiments();
+    if (experiments == null) experiments = new ArrayList<>();
 %>
 
 <!DOCTYPE html>
 <html>
 <head>
-<title>Admin - All Experiments</title>
-<link rel="stylesheet" href="assets/css/style.css">
-
-<style>
-    body { font-family: Arial; padding: 30px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { padding: 10px; border-bottom: 1px solid #ccc; }
-    th { background: #1f2937; color: white; }
-    .btn-delete { background: #dc2626; padding: 6px 10px; color: white; text-decoration: none; border-radius: 5px; }
-</style>
+    <title>Admin - Experiments</title>
+    <link rel="stylesheet" href="assets/css/style.css">
 </head>
+
 <body>
 
-<h2>All Experiments</h2>
+<!-- SHARED SIDEBAR -->
+<jsp:include page="admin-sidebar.jsp" />
 
-<table>
-<tr>
-    <th>ID</th>
-    <th>User</th>
-    <th>Title</th>
-    <th>Status</th>
-    <th>Accuracy</th>
-    <th>Created</th>
-    <th>Action</th>
-</tr>
+<div class="content">
 
-<% for (Experiment e : experiments) { %>
-<tr>
-    <td><%= e.getId() %></td>
-    <td><%= e.getUserName() %></td>
-    <td><%= e.getTitle() %></td>
-    <td><%= e.getStatus() %></td>
-    <td><%= e.getAccuracy() %></td>
-    <td><%= e.getCreatedAt() %></td>
-    <td>
-        <a class="btn-delete" href="delete-experiment?id=<%= e.getId() %>">Delete</a>
-    </td>
-</tr>
-<% } %>
+    <h2>All Experiments</h2>
+    <p>All experiments created by users.</p>
 
-</table>
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>User</th>
+            <th>Title</th>
+            <th>Status</th>
+            <th>Accuracy</th>
+            <th>Created At</th>
+            <th>Action</th>
+        </tr>
+
+        <% if (experiments.isEmpty()) { %>
+            <tr>
+                <td colspan="7">No experiments found.</td>
+            </tr>
+        <% } else {
+            for (Experiment exp : experiments) {
+
+                String status = (exp.getStatus() != null) ? exp.getStatus() : "PENDING";
+                float accuracy = exp.getAccuracy();
+                String createdAt = (exp.getCreatedAt() != null) ? exp.getCreatedAt() : "-";
+        %>
+
+        <tr>
+            <td><%= exp.getId() %></td>
+            <td><%= exp.getUserName() %></td>
+            <td><%= exp.getTitle() %></td>
+            <td>
+                <span class="status <%= status.toLowerCase() %>">
+                    <%= status %>
+                </span>
+            </td>
+            <td><%= accuracy %> %</td>
+            <td><%= createdAt %></td>
+            <td>
+                <a class="btn-delete"
+                   href="delete-experiment?id=<%= exp.getId() %>">
+                   Delete
+                </a>
+            </td>
+        </tr>
+
+        <% } } %>
+    </table>
+
+</div>
 
 </body>
 </html>

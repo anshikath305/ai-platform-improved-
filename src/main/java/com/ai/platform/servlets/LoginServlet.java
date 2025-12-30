@@ -1,46 +1,62 @@
 package com.ai.platform.servlets;
 
-import com.ai.platform.dao.UserDAO;
 import com.ai.platform.model.User;
+import com.ai.platform.service.UserService;
+import com.ai.platform.util.ErrorLogger;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 
 import java.io.IOException;
 
 @WebServlet("/login")
 public class LoginServlet extends HttpServlet {
 
+    private final UserService userService = new UserService();
+
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        String email = request.getParameter("email");
-        String password = request.getParameter("password");
+        try {
+            String email = request.getParameter("email");
+            String password = request.getParameter("password");
 
-        UserDAO userDAO = new UserDAO();
-        User user = userDAO.getUserByEmailAndPassword(email, password);
+            // 🔍 DEBUG LINE — REMOVE AFTER ISSUE IS FIXED
+            // System.out.println("LOGIN INPUT -> email=" + email + ", password=" + password);
 
-        if (user != null) {
+            if (email == null || password == null ||
+                email.trim().isEmpty() || password.trim().isEmpty()) {
 
-            // Create session
-            HttpSession session = request.getSession();
-            session.setAttribute("user", user);
-
-            // Redirect based on role
-            if ("ADMIN".equals(user.getRole())) {
-                response.sendRedirect("admin-dashboard.jsp");
-            } else {
-                response.sendRedirect("researcher-dashboard.jsp");
+                response.sendRedirect("login.jsp?msg=empty");
+                return;
             }
 
-        } else {
-            // Wrong credentials
-            response.sendRedirect("login.jsp?error=1");
+            User user = userService.login(email.trim(), password.trim());
+
+            // 🔍 DEBUG LINE — REMOVE AFTER ISSUE IS FIXED
+            // System.out.println("USER FOUND? -> " + (user != null));
+
+            if (user == null) {
+                response.sendRedirect("login.jsp?msg=invalid");
+                return;
+            }
+
+            request.getSession().setAttribute("user", user);
+
+            if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+    response.sendRedirect("admin-dashboard.jsp");
+} else {
+    response.sendRedirect("researcher-dashboard.jsp"); // ✅ EXISTS
+}
+
+
+        } catch (Exception e) {
+            ErrorLogger.log(e);
+            response.sendRedirect("login.jsp?msg=error");
         }
     }
 }

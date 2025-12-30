@@ -1,5 +1,5 @@
 package com.ai.platform.dao;
-
+import com.ai.platform.util.ErrorLogger;
 import com.ai.platform.db.DBConnection;
 import com.ai.platform.model.CollabComment;
 
@@ -23,7 +23,8 @@ public class CollabCommentDAO {
             return stmt.executeUpdate() > 0;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
+
         }
         return false;
     }
@@ -52,7 +53,8 @@ public class CollabCommentDAO {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
+
         }
 
         return comments;
@@ -73,7 +75,8 @@ public class CollabCommentDAO {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            ErrorLogger.log(e);
+
         }
 
         return "Unknown User";
@@ -100,7 +103,8 @@ public List<CollabComment> getAllComments() {
         }
 
     } catch (Exception e) {
-        e.printStackTrace();
+        ErrorLogger.log(e);
+
     }
 
     return list;

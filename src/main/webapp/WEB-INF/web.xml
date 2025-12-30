@@ -1,17 +1,67 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_5_0.xsd"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee
+                             https://jakarta.ee/xml/ns/jakartaee/web-app_5_0.xsd"
          version="5.0">
 
     <display-name>AI Platform</display-name>
+
+    <!-- ========================= -->
+    <!-- FILTER DEFINITIONS -->
+    <!-- ========================= -->
+
+    <filter>
+        <filter-name>ExceptionFilter</filter-name>
+        <filter-class>com.ai.platform.filters.ExceptionFilter</filter-class>
+    </filter>
+
+    <filter-mapping>
+        <filter-name>ExceptionFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <filter>
+        <filter-name>RoleFilter</filter-name>
+        <filter-class>com.ai.platform.filters.RoleFilter</filter-class>
+    </filter>
+
+    <filter-mapping>
+        <filter-name>RoleFilter</filter-name>
+        <url-pattern>/admin-*</url-pattern>
+    </filter-mapping>
+
+    <!-- ========================= -->
+    <!-- MULTIPART (FILE UPLOADS) -->
+    <!-- ========================= -->
+
     <multipart-config>
-    <location>/tmp</location>
-    <max-file-size>20848820</max-file-size>
-    <max-request-size>418018841</max-request-size>
-    <file-size-threshold>512000</file-size-threshold>
-</multipart-config>
+        <location>/tmp</location>
+        <max-file-size>20848820</max-file-size>
+        <max-request-size>418018841</max-request-size>
+        <file-size-threshold>512000</file-size-threshold>
+    </multipart-config>
 
+    <!-- ========================= -->
+    <!-- TEMPORARILY DISABLED ERROR PAGES -->
+    <!-- (ENABLE AFTER DEBUGGING) -->
+    <!-- ========================= -->
 
+    <!--
+    <error-page>
+        <exception-type>java.lang.Exception</exception-type>
+        <location>/error.jsp</location>
+    </error-page>
+
+    <error-page>
+        <error-code>404</error-code>
+        <location>/error.jsp</location>
+    </error-page>
+
+    <error-page>
+        <error-code>500</error-code>
+        <location>/error.jsp</location>
+    </error-page>
+    -->
 
 </web-app>

@@ -18,18 +18,23 @@ public class DeleteTrainingServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // Only admin can delete
         User user = (User) request.getSession().getAttribute("user");
-        if (user == null || !"admin".equals(user.getRole())) {
-            response.sendRedirect("login.jsp");
+
+        if (user == null || !"ADMIN".equals(user.getRole())) {
+            response.sendRedirect("login.jsp?msg=authFailed");
             return;
         }
 
         int id = Integer.parseInt(request.getParameter("id"));
 
         TrainingJobDAO dao = new TrainingJobDAO();
-        dao.deleteTrainingJob(id);
 
-        response.sendRedirect("admin-training.jsp");
+        boolean deleted = dao.deleteTrainingJob(id);
+
+        if (deleted) {
+            response.sendRedirect("admin-training.jsp?msg=deleted");
+        } else {
+            response.sendRedirect("admin-training.jsp?msg=failed");
+        }
     }
 }
